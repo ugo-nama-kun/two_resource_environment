@@ -14,6 +14,5 @@ class DQNAgent:
         # plt.imshow(observation[0])
         # plt.pause(0.0001)
         # print(f"Vector observations : {observation[1]}")
-
         return random.choice(range(self.n_action))
 

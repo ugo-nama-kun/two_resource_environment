@@ -15,7 +15,6 @@ def show_config(config: configparser.ConfigParser):
 
 def main(config):
     env_name = "./unity_env/TwoResourceProblem"
-
     engine_configuration_channel = EngineConfigurationChannel()
     env = UnityEnvironment(file_name=env_name,
                            seed=1,
@@ -23,7 +22,6 @@ def main(config):
 
     experiment = Experiment(env=env, config=config)
     experiment.start()
-
     env.close()
 
 
@@ -31,5 +29,4 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read("./config.conf")
     show_config(config)
-
     main(config)

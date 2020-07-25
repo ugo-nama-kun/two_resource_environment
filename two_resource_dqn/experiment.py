@@ -8,6 +8,9 @@ from two_resource_dqn.dqn_agent import DQNAgent
 
 
 class Experiment:
+    """ Experiment Class for handling the experiment process
+    Assuming only one agent (behavior) is in the environment
+    """
     def __init__(self,
                  env: UnityEnvironment,
                  config: ConfigParser):
