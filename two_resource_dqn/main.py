@@ -27,6 +27,6 @@ def main(config):
 
 if __name__ == '__main__':
     config = configparser.ConfigParser()
-    config.read("./config.conf")
+    config.read("./config.ini")
     show_config(config)
     main(config)
