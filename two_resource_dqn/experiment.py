@@ -32,7 +32,8 @@ class Experiment:
         self.behavior_name = list(self.env.behavior_specs)[0]
         print(f"Name of the behavior : {self.behavior_name}")
         self.spec = self.env.behavior_specs[self.behavior_name]
-        self.dqn_agent = DQNAgent(n_action=self.spec.discrete_action_branches[0],
+        self.dqn_agent = DQNAgent(config=config,
+                                  n_action=self.spec.discrete_action_branches[0],
                                   action_size=self.spec.action_size,
                                   shape_vector_obs=self.spec.observation_shapes[1],
                                   shape_obs_image=self.spec.observation_shapes[0])
