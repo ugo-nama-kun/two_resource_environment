@@ -212,20 +212,22 @@ class DQNAgent:
 
             next_im_tensor = experience.next_observation.image.to(self._device)
             next_vec_tensor = experience.next_observation.vector.to(self._device)
-            q_vec_next = self.qnet_support(next_im_tensor, next_vec_tensor).max()
+            q_vec_next = self.qnet_support(next_im_tensor, next_vec_tensor).max().detach()
+            # Assuming shaping reward with \Phi(s) = log P(s)
+            reward_tensor = self.reward(vec_tensor, next_vec_tensor).to(self._device)
+            # print(reward_tensor.cpu().numpy())
 
-            reward_tensor = self.reward(vec_tensor).to(self._device)
-
-            target = reward_tensor + self._reward_discount * q_vec_next.detach()
+            target = reward_tensor + self._reward_discount * q_vec_next
             loss += (target - q_val).pow(2)
         loss /= self.batch_size
         loss.backward()
         self._optimizer.step()
 
-    @staticmethod
-    def reward(vector_obs: torch.Tensor):
-        reward = - 0.1 * vector_obs.pow(2.0).sum()
-        return reward.detach()
+    def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor):
+        # Shaping reward-enhanced reward
+        reward = - 0.1 * next_vector_obs.pow(2.0).sum()
+        reward -= - 0.1 * vector_obs.pow(2.0).sum()
+        return (self._reward_discount/(1 - self._reward_discount)) * reward.detach()
 
     @property
     def eps_e_greedy(self):
