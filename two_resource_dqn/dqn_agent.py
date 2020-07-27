@@ -181,7 +181,7 @@ class DQNAgent:
             observation=Observation(image=im_tensor, vector=vec_tensor),
             action=next_action
         )
-        print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
+        # print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Train Agent
         if self.replay_buffer.n_experience > self.training_start_from:
@@ -193,7 +193,7 @@ class DQNAgent:
             self.qnet_support.load_state_dict(self.qnet.state_dict())
         self.time_tick += 1
 
-        print(f"next action :{next_action}")
+        # print(f"next action :{next_action}")
         return next_action
 
     def train(self):
