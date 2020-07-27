@@ -23,6 +23,7 @@ class Experiment:
         self._n_episode = int(config["experiment"]["n_episode"])
         self._maximum_survival_time_steps = int(config["experiment"]["maximum_survival_time_steps"])
         self._device = device
+        self._save_network_every = int(config["experiment"]["save_network_every"])
 
         # Exploration Scheduling
         self._eps_start = float(config["exploration"]["eps_start"])
@@ -80,8 +81,11 @@ class Experiment:
                     else:
                         t += 1
                 print(f"{n}/{self._n_experiment}-th experiment, episodes: {episode}/{self._n_episode}, Score: {t} ")
+                if episode % self._save_network_every == 0:
+                    self._dqn_agent.save_network(n_experiment=n)
             plt.plot(range(self._n_episode), survival_time_steps)
             plt.pause(0.001)
+            self._dqn_agent.save_network(n_experiment=n)
 
         print("Experiment Done.")
         plt.show()

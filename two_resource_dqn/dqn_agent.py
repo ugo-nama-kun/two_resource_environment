@@ -249,3 +249,8 @@ class DQNAgent:
         ))
         vec_tensor = torch.tensor(raw_observation[1])
         return im_tensor, vec_tensor
+
+    def save_network(self, n_experiment: int):
+        torch.save(self.qnet.state_dict(),
+                   f=f"saved_network/qnet_{n_experiment}.pth")
+        print(f"Network saved in {n_experiment}-th experiment.")
