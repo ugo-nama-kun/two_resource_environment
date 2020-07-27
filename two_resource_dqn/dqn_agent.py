@@ -16,9 +16,10 @@ class QNet(nn.Module):
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=32, kernel_size=5, stride=2)
         self.bn2 = nn.BatchNorm2d(32)
 
-        self.fc_vec = nn.Linear(in_features=vector_dim, out_features=256)
-        self.fc1 = nn.Linear(in_features=5664, out_features=1024)
-        self.fc2 = nn.Linear(in_features=1024, out_features=n_action)
+        self.fc_vec = nn.Linear(in_features=vector_dim, out_features=128)
+
+        self.fc1 = nn.Linear(in_features=928, out_features=256)
+        self.fc2 = nn.Linear(in_features=256, out_features=n_action)
 
         self.act_conv = nn.Softplus()
         self.act_fc = nn.Softplus()
@@ -181,11 +182,12 @@ class DQNAgent:
             observation=Observation(image=im_tensor, vector=vec_tensor),
             action=next_action
         )
-        # print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Train Agent
         if self.replay_buffer.n_experience > self.training_start_from:
             self.train()
+        else:
+            print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
@@ -193,7 +195,7 @@ class DQNAgent:
             self.qnet_support.load_state_dict(self.qnet.state_dict())
         self.time_tick += 1
 
-        # print(f"next action :{next_action}")
+        print(f"next action :{next_action}")
         return next_action
 
     def train(self):
@@ -234,8 +236,12 @@ class DQNAgent:
         _, index = q_val.topk(1)
         return index[0]
 
-    @staticmethod
-    def obs_to_tensor(raw_observation):
-        im_tensor = torch.tensor(raw_observation[0]).view((1, 3, 64, 64))
+    def obs_to_tensor(self, raw_observation):
+        im_tensor = torch.tensor(raw_observation[0]).view((
+            1,
+            self.shape_obs_image[2],
+            self.shape_obs_image[0],
+            self.shape_obs_image[1]
+        ))
         vec_tensor = torch.tensor(raw_observation[1])
         return im_tensor, vec_tensor
