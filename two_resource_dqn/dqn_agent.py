@@ -170,12 +170,14 @@ class DQNAgent:
         self.time_tick = 0
 
     def step(self, observation, done) -> torch.Tensor:
-        im_tensor, vec_tensor = self.obs_to_tensor(observation)
-        greedy_action = self.get_greedy_action(im_tensor.to(self._device), vec_tensor.to(self._device))
-        if random.random() < self.eps_e_greedy:
-            next_action = random.choice(range(self.n_action))
-        else:
-            next_action = greedy_action
+        with torch.no_grad():
+            im_tensor, vec_tensor = self.obs_to_tensor(observation)
+            greedy_action, q_vec = self.get_greedy_action(im_tensor.to(self._device), vec_tensor.to(self._device))
+            if random.random() < self.eps_e_greedy:
+                next_action = random.choice(range(self.n_action))
+            else:
+                next_action = greedy_action
+            print(f"Q-val : {q_vec[next_action]}")
 
         # Stock into the replay buffer
         self.replay_buffer.append(
@@ -206,14 +208,16 @@ class DQNAgent:
             action = experience.action
             im_tensor = experience.observation.image.to(self._device)
             vec_tensor = experience.observation.vector.to(self._device)
-            q_vec = self.qnet(im_tensor, vec_tensor)
+            q_val = self.qnet(im_tensor, vec_tensor)[action]
 
-            reward_tensor = self.reward(vec_tensor).to(self._device)
             next_im_tensor = experience.next_observation.image.to(self._device)
             next_vec_tensor = experience.next_observation.vector.to(self._device)
             q_vec_next = self.qnet_support(next_im_tensor, next_vec_tensor).max()
+
+            reward_tensor = self.reward(vec_tensor).to(self._device)
+
             target = reward_tensor + self._reward_discount * q_vec_next.detach()
-            loss += (target - q_vec[action]).pow(2)
+            loss += (target - q_val).pow(2)
         loss /= self.batch_size
         loss.backward()
         self._optimizer.step()
@@ -234,7 +238,7 @@ class DQNAgent:
     def get_greedy_action(self, im_tensor, vec_tensor):
         q_val = self.qnet(im_tensor, vec_tensor).detach()
         _, index = q_val.topk(1)
-        return index[0]
+        return index[0], q_val
 
     def obs_to_tensor(self, raw_observation):
         im_tensor = torch.tensor(raw_observation[0]).view((
