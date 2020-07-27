@@ -23,7 +23,7 @@ class QNet(nn.Module):
         self.act_conv = nn.Softplus()
         self.act_fc = nn.Softplus()
 
-    def forward(self, image_tensor, vector_tensor):
+    def forward(self, image_tensor: torch.Tensor, vector_tensor: torch.Tensor) -> torch.Tensor:
         x_im = self.act_conv(self.bn1(self.conv1(image_tensor)))
         x_im = self.act_conv(self.bn2(self.conv2(x_im)))
         x_im = x_im.flatten()
@@ -130,42 +130,47 @@ class ReplayBuffer:
 class DQNAgent:
     """ Classical Deep Q Network Agent
     """
-    def __init__(self, config, n_action, action_size, shape_vector_obs, shape_obs_image, eps_start):
-        # Optimization
-        self.learning_rate = float(config["dnn"]["learning_rate"])
-        self.adam_eps = float(config["dnn"]["adam_eps"])
-        self.batch_size = int(config["dnn"]["batch_size"])
-        self.iteration = int(config["qn"]["iteration"])
 
+    def __init__(self, config, n_action, action_size, shape_vector_obs, shape_obs_image, eps_start, device):
         # Network
         self.input_time_horizon = int(config["qn"]["input_time_horizon"])
         self.action_size = action_size
         self.shape_obs_image = shape_obs_image  # Like (64, 64, 3)
         self.shape_vector_obs = shape_vector_obs  # Like  (2,)
         self.n_action = n_action
+        self._device = device
         self.qnet = QNet(n_images=self.input_time_horizon,
                          vector_dim=2,
-                         n_action=n_action)
+                         n_action=n_action).to(device)
         self.qnet_support = QNet(n_images=1,
                                  vector_dim=2,
-                                 n_action=n_action)
+                                 n_action=n_action).to(device)
         self.qnet_support.load_state_dict(self.qnet.state_dict())
+
+        # Optimization
+        self.training_start_from = int(config["qn"]["training_start_from"])
+        self.learning_rate = float(config["dnn"]["learning_rate"])
+        self.adam_eps = float(config["dnn"]["adam_eps"])
+        self.batch_size = int(config["dnn"]["batch_size"])
+        self.iteration = int(config["qn"]["iteration"])
+        self._optimizer = torch.optim.Adam(
+            params=self.qnet.parameters(),
+            lr=self.learning_rate,
+            eps=self.adam_eps
+        )
 
         # Replay Buffer
         self.replay_buffer_size = int(config["qn"]["replay_buffer_size"])
         self.replay_buffer = ReplayBuffer(buffer_size=self.replay_buffer_size)
 
         # Other initialization
+        self._reward_discount = float(config["qn"]["reward_discount"])
         self.__eps_e_greedy = eps_start
         self.time_tick = 0
 
     def step(self, observation, done) -> torch.Tensor:
-        # plt.imshow(observation[0])
-        # plt.pause(0.0001)
-        # print(f"Vector observations : {observation[1]}")
-
         im_tensor, vec_tensor = self.obs_to_tensor(observation)
-        greedy_action = self.get_greedy_action(im_tensor, vec_tensor)
+        greedy_action = self.get_greedy_action(im_tensor.to(self._device), vec_tensor.to(self._device))
         if random.random() < self.eps_e_greedy:
             next_action = random.choice(range(self.n_action))
         else:
@@ -178,17 +183,43 @@ class DQNAgent:
         )
         print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
+        # Train Agent
+        if self.replay_buffer.n_experience > self.training_start_from:
+            self.train()
+
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
             self.time_tick = 0
             self.qnet_support.load_state_dict(self.qnet.state_dict())
         self.time_tick += 1
 
+        print(f"next action :{next_action}")
         return next_action
 
-    def reward(self, observation):
-        vec_obs = observation[1]
-        return - 0.1 * (vec_obs[0]**2 + vec_obs[1]**2)
+    def train(self):
+        self._optimizer.zero_grad()
+        data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
+        loss = torch.zeros(1).to(self._device)
+        for experience in data_batch:
+            action = experience.action
+            im_tensor = experience.observation.image.to(self._device)
+            vec_tensor = experience.observation.vector.to(self._device)
+            q_vec = self.qnet(im_tensor, vec_tensor)
+
+            reward_tensor = self.reward(vec_tensor).to(self._device)
+            next_im_tensor = experience.next_observation.image.to(self._device)
+            next_vec_tensor = experience.next_observation.vector.to(self._device)
+            q_vec_next = self.qnet_support(next_im_tensor, next_vec_tensor).max()
+            target = reward_tensor + self._reward_discount * q_vec_next.detach()
+            loss += (target - q_vec[action]).pow(2)
+        loss /= self.batch_size
+        loss.backward()
+        self._optimizer.step()
+
+    @staticmethod
+    def reward(vector_obs: torch.Tensor):
+        reward = - 0.1 * vector_obs.pow(2.0).sum()
+        return reward.detach()
 
     @property
     def eps_e_greedy(self):

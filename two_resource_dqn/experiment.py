@@ -15,12 +15,14 @@ class Experiment:
 
     def __init__(self,
                  env: UnityEnvironment,
-                 config: ConfigParser):
+                 config: ConfigParser,
+                 device):
         self._env = env
         self._config = config
         self._n_experiment = int(config["experiment"]["n_experiment"])
         self._n_episode = int(config["experiment"]["n_episode"])
         self._maximum_survival_time_steps = int(config["experiment"]["maximum_survival_time_steps"])
+        self._device = device
 
         # Exploration Scheduling
         self._eps_start = float(config["exploration"]["eps_start"])
@@ -51,7 +53,8 @@ class Experiment:
                                    action_size=self._spec.action_size,
                                    shape_vector_obs=self._spec.observation_shapes[1],
                                    shape_obs_image=self._spec.observation_shapes[0],
-                                   eps_start=self._eps_start)
+                                   eps_start=self._eps_start,
+                                   device=self._device)
         print(f"n_actions : {self._dqn_agent.n_action}")
         print(f"Shape of the Vector Observation : {self._dqn_agent.shape_vector_obs}")
         print(f"Shape of the Image Observation : {self._dqn_agent.shape_obs_image}")

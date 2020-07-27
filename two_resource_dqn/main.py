@@ -1,5 +1,6 @@
 import configparser
 
+import torch
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 
@@ -19,8 +20,10 @@ def main(config):
     env = UnityEnvironment(file_name=env_name,
                            seed=1,
                            side_channels=[engine_configuration_channel])
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(device)
 
-    experiment = Experiment(env=env, config=config)
+    experiment = Experiment(env=env, config=config, device=device)
     experiment.start()
     env.close()
 
