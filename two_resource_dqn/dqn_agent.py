@@ -109,13 +109,15 @@ class ReplayBuffer:
 class DQNAgent:
     """ Classical Deep Q Network Agent
     """
-    def __init__(self, config, n_action, action_size, shape_vector_obs, shape_obs_image):
+    def __init__(self, config, n_action, action_size, shape_vector_obs, shape_obs_image, eps_start):
         self.learning_rate = float(config["dnn"]["learning_rate"])
         self.adam_eps = float(config["dnn"]["adam_eps"])
         self.batch_size = int(config["dnn"]["batch_size"])
         self.replay_buffer = int(config["qn"]["replay_buffer"])
         self.iteration = int(config["qn"]["iteration"])
-        self.exploration = float(config["qn"]["exploration"])
+
+        self.__eps_e_greedy = eps_start
+
         self.input_time_horizon = int(config["qn"]["input_time_horizon"])
         self.action_size = action_size
         self.shape_obs_image = shape_obs_image  # Like (64, 64, 3)
@@ -137,15 +139,33 @@ class DQNAgent:
         # print(f"Vector observations : {observation[1]}")
 
         im_tensor, vec_tensor = self.obs_to_tensor(observation)
-        q_val = self.qnet(im_tensor, vec_tensor)
-        print(q_val)
+        greedy_action = self.get_greedy_action(im_tensor, vec_tensor)
+
+        if random.random() < self.eps_e_greedy:
+            next_action = random.choice(range(self.n_action))
+        else:
+            next_action = greedy_action
 
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
             self.time_tick = 0
             self.qnet_support.load_state_dict(self.qnet.state_dict())
         self.time_tick += 1
-        return random.choice(range(self.n_action))
+
+        return next_action
+
+    @property
+    def eps_e_greedy(self):
+        return self.__eps_e_greedy
+
+    @eps_e_greedy.setter
+    def eps_e_greedy(self, v):
+        self.__eps_e_greedy = v
+
+    def get_greedy_action(self, im_tensor, vec_tensor):
+        q_val = self.qnet(im_tensor, vec_tensor).detach()
+        _, index = q_val.topk(1)
+        return index[0]
 
     @staticmethod
     def obs_to_tensor(raw_observation):
