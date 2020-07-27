@@ -39,8 +39,29 @@ class BufferType(Enum):
     action = 1
 
 
+class DataType(Enum):
+    image = 0
+    vector = 1
+
+
+class Observation:
+    def __init__(self, image, vector):
+        self._obs = {
+            DataType.image: image,
+            DataType.vector: vector
+        }
+
+    @property
+    def image(self):
+        return self._obs[DataType.image]
+
+    @property
+    def vector(self):
+        return self._obs[DataType.vector]
+
+
 class ExperienceData:
-    def __init__(self, observation, action, next_observation):
+    def __init__(self, observation: Observation, action, next_observation: Observation):
         self._obs = observation
         self._act = action
         self._next_obs = next_observation
@@ -67,12 +88,12 @@ class ReplayBuffer:
             BufferType.observation: buffer_obs,
             BufferType.action: buffer_act
         }
-        self.experience_size = len(self._buffer[BufferType.observation])
+        self.n_experience = len(self._buffer[BufferType.observation])
 
-    def append(self, observation, action):
+    def append(self, observation: Observation, action):
         self._buffer[BufferType.observation].append(observation)
         self._buffer[BufferType.action].append(action)
-        self.experience_size = len(self._buffer[BufferType.observation])
+        self.n_experience = len(self._buffer[BufferType.observation])
 
     def get_single_experience(self, time_step):
         """
@@ -80,7 +101,7 @@ class ReplayBuffer:
         :param time_step:
         :return:
         """
-        assert self.experience_size - 1 > time_step, "Sample time step must be less than number of experience minus one."
+        assert self.n_experience - 1 > time_step, "Sample time step must be less than number of experience minus one."
         experience = ExperienceData(
             observation=self._buffer[BufferType.observation][time_step],
             action=self._buffer[BufferType.action][time_step],
@@ -96,34 +117,32 @@ class ReplayBuffer:
         """
         batch = []
         for i in range(batch_size):
-            index = random.choice(range(self.experience_size - 1))
+            index = random.choice(range(self.n_experience - 1))
             batch.append(self.get_single_experience(index))
         return batch
 
     def clear(self):
         self._buffer[BufferType.observation].clear()
         self._buffer[BufferType.action].clear()
-        self.experience_size = len(self._buffer[BufferType.observation])
+        self.n_experience = len(self._buffer[BufferType.observation])
 
 
 class DQNAgent:
     """ Classical Deep Q Network Agent
     """
     def __init__(self, config, n_action, action_size, shape_vector_obs, shape_obs_image, eps_start):
+        # Optimization
         self.learning_rate = float(config["dnn"]["learning_rate"])
         self.adam_eps = float(config["dnn"]["adam_eps"])
         self.batch_size = int(config["dnn"]["batch_size"])
-        self.replay_buffer = int(config["qn"]["replay_buffer"])
         self.iteration = int(config["qn"]["iteration"])
 
-        self.__eps_e_greedy = eps_start
-
+        # Network
         self.input_time_horizon = int(config["qn"]["input_time_horizon"])
         self.action_size = action_size
         self.shape_obs_image = shape_obs_image  # Like (64, 64, 3)
         self.shape_vector_obs = shape_vector_obs  # Like  (2,)
         self.n_action = n_action
-
         self.qnet = QNet(n_images=self.input_time_horizon,
                          vector_dim=2,
                          n_action=n_action)
@@ -131,6 +150,13 @@ class DQNAgent:
                                  vector_dim=2,
                                  n_action=n_action)
         self.qnet_support.load_state_dict(self.qnet.state_dict())
+
+        # Replay Buffer
+        self.replay_buffer_size = int(config["qn"]["replay_buffer_size"])
+        self.replay_buffer = ReplayBuffer(buffer_size=self.replay_buffer_size)
+
+        # Other initialization
+        self.__eps_e_greedy = eps_start
         self.time_tick = 0
 
     def step(self, observation, done) -> torch.Tensor:
@@ -140,11 +166,17 @@ class DQNAgent:
 
         im_tensor, vec_tensor = self.obs_to_tensor(observation)
         greedy_action = self.get_greedy_action(im_tensor, vec_tensor)
-
         if random.random() < self.eps_e_greedy:
             next_action = random.choice(range(self.n_action))
         else:
             next_action = greedy_action
+
+        # Stock into the replay buffer
+        self.replay_buffer.append(
+            observation=Observation(image=im_tensor, vector=vec_tensor),
+            action=next_action
+        )
+        print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
@@ -153,6 +185,10 @@ class DQNAgent:
         self.time_tick += 1
 
         return next_action
+
+    def reward(self, observation):
+        vec_obs = observation[1]
+        return - 0.1 * (vec_obs[0]**2 + vec_obs[1]**2)
 
     @property
     def eps_e_greedy(self):
