@@ -1,4 +1,6 @@
 import random
+from collections import deque
+from enum import Enum, auto
 
 import matplotlib.pyplot as plt
 
@@ -30,6 +32,78 @@ class QNet(nn.Module):
         x = self.act_fc(self.fc1(x))
         output = self.fc2(x)
         return output
+
+
+class BufferType(Enum):
+    observation = 0
+    action = 1
+
+
+class ExperienceData:
+    def __init__(self, observation, action, next_observation):
+        self._obs = observation
+        self._act = action
+        self._next_obs = next_observation
+
+    @property
+    def observation(self):
+        return self._obs
+
+    @property
+    def action(self):
+        return self._act
+
+    @property
+    def next_observation(self):
+        return self._next_obs
+
+
+class ReplayBuffer:
+    def __init__(self, buffer_size):
+        self.buffer_size = buffer_size
+        buffer_obs = deque(maxlen=buffer_size)
+        buffer_act = deque(maxlen=buffer_size)
+        self._buffer = {
+            BufferType.observation: buffer_obs,
+            BufferType.action: buffer_act
+        }
+        self.experience_size = len(self._buffer[BufferType.observation])
+
+    def append(self, observation, action):
+        self._buffer[BufferType.observation].append(observation)
+        self._buffer[BufferType.action].append(action)
+        self.experience_size = len(self._buffer[BufferType.observation])
+
+    def get_single_experience(self, time_step):
+        """
+        Return a single experience instance
+        :param time_step:
+        :return:
+        """
+        assert self.experience_size - 1 > time_step, "Sample time step must be less than number of experience minus one."
+        experience = ExperienceData(
+            observation=self._buffer[BufferType.observation][time_step],
+            action=self._buffer[BufferType.action][time_step],
+            next_observation=self._buffer[BufferType.observation][time_step + 1],
+        )
+        return experience
+
+    def get_batch_experience(self, batch_size):
+        """
+        Return batch list of experience instance
+        :param batch_size:
+        :return:
+        """
+        batch = []
+        for i in range(batch_size):
+            index = random.choice(range(self.experience_size - 1))
+            batch.append(self.get_single_experience(index))
+        return batch
+
+    def clear(self):
+        self._buffer[BufferType.observation].clear()
+        self._buffer[BufferType.action].clear()
+        self.experience_size = len(self._buffer[BufferType.observation])
 
 
 class DQNAgent:
