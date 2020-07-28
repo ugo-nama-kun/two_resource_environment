@@ -26,6 +26,7 @@ class Experiment:
         self._save_network_every = int(config["experiment"]["save_network_every"])
 
         # Exploration Scheduling
+        self._training_start_from = int(config["qn"]["training_start_from"])
         self._eps_start = float(config["exploration"]["eps_start"])
         self._eps = self._eps_start
         self._eps_min = float(config["exploration"]["eps_min"])
@@ -70,9 +71,10 @@ class Experiment:
             for episode in range(self._n_episode):
                 t = 0
                 done = False
-                self.update_eps_scheduled(episode)
+                self.update_eps_scheduled(episode=episode, time_step=sum(survival_time_steps))
                 self._env.reset()
                 while not done:
+                    print(f"experiment : {n}/{self._n_experiment}, episode : {episode}/{self._n_episode}")
                     decision_steps, terminal_steps = self._env.get_steps(self._behavior_name)
                     self.decision_process(decision_steps)
                     done = self.terminal_process(terminal_steps)
@@ -114,7 +116,11 @@ class Experiment:
             self._dqn_agent.step(observation=(image, vector_obs), done=done)
         return done
 
-    def update_eps_scheduled(self, episode):
+    def update_eps_scheduled(self, episode,  time_step):
+        if time_step < self._training_start_from:
+            self._dqn_agent.eps_e_greedy = 1.0
+            return
+
         if episode in self._eps_checkpoints:
             self._eps -= self._eps_delta
             if self._eps < self._eps_min:

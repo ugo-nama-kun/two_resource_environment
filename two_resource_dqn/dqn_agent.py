@@ -11,15 +11,15 @@ import torch.nn as nn
 class QNet(nn.Module):
     def __init__(self, n_images, vector_dim, n_action):
         super(QNet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=3 * n_images, out_channels=16, kernel_size=5, stride=2)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
+        self.conv1 = nn.Conv2d(in_channels=3 * n_images, out_channels=8, kernel_size=3, stride=1)
+        self.bn1 = nn.BatchNorm2d(8)
+        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, stride=1)
+        self.bn2 = nn.BatchNorm2d(16)
 
-        self.fc_vec = nn.Linear(in_features=vector_dim, out_features=128)
+        self.fc_vec = nn.Linear(in_features=vector_dim, out_features=50)
 
-        self.fc1 = nn.Linear(in_features=928, out_features=128)
-        self.fc2 = nn.Linear(in_features=128, out_features=n_action)
+        self.fc1 = nn.Linear(in_features=12594, out_features=400)
+        self.fc2 = nn.Linear(in_features=400, out_features=n_action)
 
         self.act_conv = nn.Softplus()
         self.act_fc = nn.Softplus()
@@ -179,9 +179,8 @@ class DQNAgent:
                 next_action = random.choice(range(self.n_action))
             else:
                 next_action = greedy_action
-            print(f"Q-val : {q_vec[next_action]}")
             if self._prev_vec is not None:
-                print(f"reward : {self.reward(self._prev_vec, vec_tensor)}")
+                print(f"reward : {self.reward(self._prev_vec, vec_tensor)}, Q-val : {q_vec[next_action]}")
             self._prev_vec = vec_tensor
 
         # Stock into the replay buffer
