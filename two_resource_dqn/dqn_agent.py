@@ -1,6 +1,7 @@
 import random
-from collections import deque
+from collections import deque, namedtuple
 from enum import Enum, auto
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 
@@ -40,61 +41,30 @@ class BufferType(Enum):
     action = 1
 
 
-class DataType(Enum):
-    image = 0
-    vector = 1
+class Observation(NamedTuple):
+    image: torch.Tensor
+    vector: torch.Tensor
 
 
-class Observation:
-    def __init__(self, image, vector):
-        self._obs = {
-            DataType.image: image,
-            DataType.vector: vector
-        }
-
-    @property
-    def image(self):
-        return self._obs[DataType.image]
-
-    @property
-    def vector(self):
-        return self._obs[DataType.vector]
-
-
-class ExperienceData:
-    def __init__(self, observation: Observation, action, next_observation: Observation):
-        self._obs = observation
-        self._act = action
-        self._next_obs = next_observation
-
-    @property
-    def observation(self):
-        return self._obs
-
-    @property
-    def action(self):
-        return self._act
-
-    @property
-    def next_observation(self):
-        return self._next_obs
+class Experience(NamedTuple):
+    observation: Observation
+    action: int
+    next_observation: Observation
 
 
 class ReplayBuffer:
     def __init__(self, buffer_size):
         self.buffer_size = buffer_size
-        buffer_obs = deque(maxlen=buffer_size)
-        buffer_act = deque(maxlen=buffer_size)
-        self._buffer = {
-            BufferType.observation: buffer_obs,
-            BufferType.action: buffer_act
-        }
-        self.n_experience = len(self._buffer[BufferType.observation])
+        self.buffer_experience = deque(maxlen=buffer_size)
+        self.n_experience = len(self.buffer_experience)
 
-    def append(self, observation: Observation, action):
-        self._buffer[BufferType.observation].append(observation)
-        self._buffer[BufferType.action].append(action)
-        self.n_experience = len(self._buffer[BufferType.observation])
+    def append(self, observation: Observation, action, next_observation: Observation):
+        self.buffer_experience.append(Experience(
+            observation=observation,
+            action=action,
+            next_observation=next_observation
+        ))
+        self.n_experience = len(self.buffer_experience)
 
     def get_single_experience(self, time_step):
         """
@@ -103,12 +73,7 @@ class ReplayBuffer:
         :return:
         """
         assert self.n_experience - 1 > time_step, "Sample time step must be less than number of experience minus one."
-        experience = ExperienceData(
-            observation=self._buffer[BufferType.observation][time_step],
-            action=self._buffer[BufferType.action][time_step],
-            next_observation=self._buffer[BufferType.observation][time_step + 1],
-        )
-        return experience
+        return self.buffer_experience[time_step]
 
     def get_batch_experience(self, batch_size):
         """
@@ -123,9 +88,8 @@ class ReplayBuffer:
         return batch
 
     def clear(self):
-        self._buffer[BufferType.observation].clear()
-        self._buffer[BufferType.action].clear()
-        self.n_experience = len(self._buffer[BufferType.observation])
+        self.buffer_experience.clear()
+        self.n_experience = len(self.buffer_experience)
 
 
 class DQNAgent:
@@ -169,25 +133,32 @@ class DQNAgent:
         self._reward_discount = float(config["qn"]["reward_discount"])
         self.__eps_e_greedy = eps_start
         self.time_tick = 0
-        self._prev_vec = None
+        self._prev_observation = None
+        self._prev_action = None
+
+    def reset_for_new_episode(self):
+        self._prev_observation = None
+        self._prev_action = None
 
     def step(self, observation, done) -> torch.Tensor:
         with torch.no_grad():
             im_tensor, vec_tensor = self.obs_to_tensor(observation)
+
+            # Stock into the replay buffer
+            obs_now = Observation(image=im_tensor, vector=vec_tensor)
+            if None not in (self._prev_action, self._prev_observation):
+                self.replay_buffer.append(
+                    observation=self._prev_observation,
+                    action=self._prev_action,
+                    next_observation=obs_now
+                )
+
+            # Get Action
             greedy_action, q_vec = self.get_greedy_action(im_tensor.to(self._device), vec_tensor.to(self._device))
             if random.random() < self.eps_e_greedy:
                 next_action = random.choice(range(self.n_action))
             else:
                 next_action = greedy_action
-            if self._prev_vec is not None:
-                print(f"reward : {self.reward(self._prev_vec, vec_tensor)}, Q-val : {q_vec[next_action]}")
-            self._prev_vec = vec_tensor
-
-        # Stock into the replay buffer
-        self.replay_buffer.append(
-            observation=Observation(image=im_tensor, vector=vec_tensor),
-            action=next_action
-        )
 
         # Train Agent
         if self.replay_buffer.n_experience > self.training_start_from:
@@ -202,7 +173,15 @@ class DQNAgent:
             print("Q-net Iteration Done.")
         else:
             self.time_tick += 1
-        # print(f"next action :{next_action}")
+
+        # Some visualization
+        if self._prev_observation is not None:
+            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
+
+        # Set for next step
+        self._prev_observation = obs_now
+        self._prev_action = next_action
+
         return next_action
 
     def train(self):
