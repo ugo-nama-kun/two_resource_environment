@@ -157,7 +157,8 @@ class DQNAgent:
         self._optimizer = torch.optim.Adam(
             params=self.qnet.parameters(),
             lr=self.learning_rate,
-            eps=self.adam_eps
+            eps=self.adam_eps,
+            weight_decay=float(config["dnn"]["weight_decay"])
         )
 
         # Replay Buffer
@@ -168,6 +169,7 @@ class DQNAgent:
         self._reward_discount = float(config["qn"]["reward_discount"])
         self.__eps_e_greedy = eps_start
         self.time_tick = 0
+        self._prev_vec = None
 
     def step(self, observation, done) -> torch.Tensor:
         with torch.no_grad():
@@ -178,6 +180,9 @@ class DQNAgent:
             else:
                 next_action = greedy_action
             print(f"Q-val : {q_vec[next_action]}")
+            if self._prev_vec is not None:
+                print(f"reward : {self.reward(self._prev_vec, vec_tensor)}")
+            self._prev_vec = vec_tensor
 
         # Stock into the replay buffer
         self.replay_buffer.append(
@@ -195,6 +200,7 @@ class DQNAgent:
         if self.time_tick == self.iteration:
             self.time_tick = 0
             self.qnet_support.load_state_dict(self.qnet.state_dict())
+            print("Q-net Iteration Done.")
         else:
             self.time_tick += 1
         # print(f"next action :{next_action}")
@@ -227,7 +233,10 @@ class DQNAgent:
         # Shaping reward-enhanced reward
         reward = - 0.1 * next_vector_obs.pow(2.0).sum()
         reward -= - 0.1 * vector_obs.pow(2.0).sum()
-        return (self._reward_discount/(1 - self._reward_discount)) * reward.detach()
+        reward *= self._reward_discount/(1.0 - self._reward_discount)
+        # Clip reward
+        reward = reward.clamp(min=-3, max=+3)
+        return reward.detach()
 
     @property
     def eps_e_greedy(self):
