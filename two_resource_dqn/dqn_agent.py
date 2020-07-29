@@ -190,9 +190,10 @@ class DQNAgent:
         self.__eps_e_greedy = v
 
     def get_greedy_action(self, im_tensor_queue: Deque[torch.Tensor], vec_tensor):
-        im_all = torch.cat(tuple(im_tensor_queue), 1)
-        q_val = self.qnet(im_all, vec_tensor).detach()
-        _, index = q_val.topk(1)
+        with torch.no_grad():
+            im_all = torch.cat(tuple(im_tensor_queue), 1)
+            q_val = self.qnet(im_all, vec_tensor).detach()
+            _, index = q_val.topk(1)
         return index[0], q_val
 
     def obs_to_tensor(self, raw_observation):
