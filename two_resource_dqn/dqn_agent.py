@@ -163,7 +163,8 @@ class DQNAgent:
         if self.replay_buffer.n_experience > self.training_start_from:
             self.train()
         else:
-            print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
+            if self.replay_buffer.n_experience % 500 == 0:
+                print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
@@ -201,7 +202,7 @@ class DQNAgent:
             # print(reward_tensor.cpu().numpy())
 
             target = reward_tensor + self._reward_discount * q_vec_next
-            loss += (target - q_val).pow(2)
+            loss += (target - q_val).clamp(min=-1, max=1).pow(2)
         loss /= self.batch_size
         loss.backward()
         self._optimizer.step()
