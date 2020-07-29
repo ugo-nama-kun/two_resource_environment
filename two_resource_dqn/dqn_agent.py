@@ -4,7 +4,9 @@ import torch
 import torch.nn as nn
 
 from collections import deque
-from typing import NamedTuple, Optional, Tuple
+from typing import Optional, Deque
+
+from two_resource_dqn.replay_buffer import ReplayBuffer, Observation
 
 
 class QNet(nn.Module):
@@ -32,57 +34,6 @@ class QNet(nn.Module):
         x = self.act_fc(self.fc1(x))
         output = self.fc2(x)
         return output
-
-
-class Observation(NamedTuple):
-    image: Tuple[torch.Tensor]
-    vector: torch.Tensor
-
-
-class Experience(NamedTuple):
-    observation: Observation
-    action: int
-    next_observation: Observation
-
-
-class ReplayBuffer:
-    def __init__(self, buffer_size):
-        self.buffer_size = buffer_size
-        self.buffer_experience = deque(maxlen=buffer_size)
-        self.n_experience = len(self.buffer_experience)
-
-    def append(self, observation: Observation, action, next_observation: Observation):
-        self.buffer_experience.append(Experience(
-            observation=observation,
-            action=action,
-            next_observation=next_observation
-        ))
-        self.n_experience = len(self.buffer_experience)
-
-    def get_single_experience(self, time_step):
-        """
-        Return a single experience instance
-        :param time_step:
-        :return:
-        """
-        assert self.n_experience - 1 > time_step, "Sample time step must be less than number of experience minus one."
-        return self.buffer_experience[time_step]
-
-    def get_batch_experience(self, batch_size):
-        """
-        Return batch list of experience instance
-        :param batch_size:
-        :return:
-        """
-        batch = []
-        for i in range(batch_size):
-            index = random.choice(range(self.n_experience - 1))
-            batch.append(self.get_single_experience(index))
-        return batch
-
-    def clear(self):
-        self.buffer_experience.clear()
-        self.n_experience = len(self.buffer_experience)
 
 
 class DQNAgent:
@@ -128,10 +79,10 @@ class DQNAgent:
         self.time_tick = 0
         self._prev_observation: Optional[Observation] = None
         self._prev_action: Optional[int] = None
-        self._prev_im_tensor: Optional[torch.Tensor] = None
+        self._im_tensor_queue: Deque = deque(maxlen=self.input_time_horizon)
 
     def reset_for_new_episode(self):
-        self._prev_im_tensor = None
+        self._im_tensor_queue.clear()
         self._prev_observation = None
         self._prev_action = None
 
@@ -140,11 +91,13 @@ class DQNAgent:
             im_tensor, vec_tensor = self.obs_to_tensor(observation)
 
             # Stock into the replay buffer
-            if self._prev_im_tensor is None:
+            if len(self._im_tensor_queue) == 0:
                 # Use same image at the first step
-                obs_now = Observation(image=tuple([im_tensor, im_tensor]), vector=vec_tensor)
-            else:
-                obs_now = Observation(image=tuple([self._prev_im_tensor, im_tensor]), vector=vec_tensor)
+                for i in range(self.input_time_horizon):
+                    self._im_tensor_queue.append(im_tensor)
+
+            # Construct a single observation
+            obs_now = Observation(image_seq=tuple(self._im_tensor_queue), vector=vec_tensor)
 
             # Add experience
             if None not in (self._prev_action, self._prev_observation) and not done:
@@ -154,11 +107,11 @@ class DQNAgent:
                     next_observation=obs_now
                 )
 
-            # Get Action
+            # Get an action
             greedy_action, q_vec = self.get_greedy_action(
-                prev_im_tensor=self._prev_im_tensor,
-                im_tensor=im_tensor,
-                vec_tensor=vec_tensor)
+                im_tensor_queue=self._im_tensor_queue,
+                vec_tensor=vec_tensor
+            )
             if random.random() < self.eps_e_greedy:
                 next_action = random.choice(range(self.n_action))
             else:
@@ -168,8 +121,8 @@ class DQNAgent:
         if self.replay_buffer.n_experience > self.training_start_from:
             self.train()
         else:
-            if self.replay_buffer.n_experience % 500 == 0:
-                print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
+            # if self.replay_buffer.n_experience % 500 == 0:
+            print(f"Buffer : {self.replay_buffer.n_experience}/{self.replay_buffer_size}")
 
         # Copy Q net to the support network
         if self.time_tick == self.iteration:
@@ -184,7 +137,7 @@ class DQNAgent:
             print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
 
         # Set for next step
-        self._prev_im_tensor = im_tensor
+        self._im_tensor_queue.append(im_tensor)
         self._prev_observation = obs_now
         self._prev_action = next_action
 
@@ -197,13 +150,13 @@ class DQNAgent:
         for experience in data_batch:
             # Get Q(s,a)
             action = experience.action
-            im_tensor_all = torch.cat(experience.observation.image, 0)
+            im_tensor_all = torch.cat(experience.observation.image_seq, 1)
             vec_tensor = experience.observation.vector
             q_val = self.qnet(im_tensor_all, vec_tensor)[action]
 
             with torch.no_grad():
                 # Get max Q(s',*)
-                next_im_tensor_all = torch.cat(experience.next_observation.image, 0)
+                next_im_tensor_all = torch.cat(experience.next_observation.image_seq, 1)
                 next_vec_tensor = experience.next_observation.vector
                 q_vec_next = self.qnet_support(next_im_tensor_all, next_vec_tensor).max().detach()
 
@@ -236,11 +189,8 @@ class DQNAgent:
     def eps_e_greedy(self, v):
         self.__eps_e_greedy = v
 
-    def get_greedy_action(self, prev_im_tensor, im_tensor, vec_tensor):
-        if prev_im_tensor is not None:
-            im_all = torch.cat([prev_im_tensor, im_tensor], 1)
-        else:
-            im_all = torch.cat([im_tensor, im_tensor], 1)
+    def get_greedy_action(self, im_tensor_queue: Deque[torch.Tensor], vec_tensor):
+        im_all = torch.cat(tuple(im_tensor_queue), 1)
         q_val = self.qnet(im_all, vec_tensor).detach()
         _, index = q_val.topk(1)
         return index[0], q_val
