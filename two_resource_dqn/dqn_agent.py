@@ -28,9 +28,9 @@ class QNet(nn.Module):
     def forward(self, image_tensor: torch.Tensor, vector_tensor: torch.Tensor) -> torch.Tensor:
         x_im = self.act_conv(self.bn1(self.conv1(image_tensor)))
         x_im = self.act_conv(self.bn2(self.conv2(x_im)))
-        x_im = x_im.flatten()
+        x_im = x_im.flatten(start_dim=1)
         x_int = self.act_fc(self.fc_vec(vector_tensor))
-        x = torch.cat([x_im, x_int], dim=0)
+        x = torch.cat([x_im, x_int], dim=1)
         x = self.act_fc(self.fc1(x))
         output = self.fc2(x)
         return output
@@ -57,6 +57,7 @@ class DQNAgent:
         self.qnet_support.load_state_dict(self.qnet.state_dict())
 
         # Optimization
+        self.epoch = int(config["dnn"]["epoch"])
         self.training_start_from = int(config["qn"]["training_start_from"])
         self.learning_rate = float(config["dnn"]["learning_rate"])
         self.adam_eps = float(config["dnn"]["adam_eps"])
@@ -134,7 +135,7 @@ class DQNAgent:
 
         # Some visualization
         if self._prev_observation is not None:
-            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
+            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[0][next_action]}")
 
         # Set for next step
         self._im_tensor_queue.append(im_tensor)
@@ -144,31 +145,67 @@ class DQNAgent:
         return next_action
 
     def train(self):
-        self._optimizer.zero_grad()
-        data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
-        loss = torch.zeros(1).to(self._device)
-        for experience in data_batch:
-            # Get Q(s,a)
-            action = experience.action
-            im_tensor_all = torch.cat(experience.observation.image_seq, 1)
-            vec_tensor = experience.observation.vector
-            q_val = self.qnet(im_tensor_all, vec_tensor)[action]
+        for epoch in range(self.epoch):
+            data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
 
-            with torch.no_grad():
-                # Get max Q(s',*)
-                next_im_tensor_all = torch.cat(experience.next_observation.image_seq, 1)
-                next_vec_tensor = experience.next_observation.vector
-                q_vec_next = self.qnet_support(next_im_tensor_all, next_vec_tensor).max().detach()
+            # Make a batch data
+            im_tensor_all = None
+            next_im_tensor_all = None
+            vec_tensor = None
+            next_vec_tensor = None
+            action_list = torch.empty((self.batch_size, 1), dtype=torch.long).to(self._device)
+            im_size = (
+                1,
+                self.input_time_horizon * self.shape_obs_image[2],
+                self.shape_obs_image[0],
+                self.shape_obs_image[1]
+            )
+            for i, experience in enumerate(data_batch):
+                action_list[i] = experience.action
+
+                if i == 0:
+                    im_tensor_all = torch.cat(experience.observation.image_seq, 1).view(im_size)
+                    vec_tensor = experience.observation.vector.view(1, -1)
+                    next_im_tensor_all = torch.cat(experience.next_observation.image_seq, 1).view(im_size)
+                    next_vec_tensor = experience.next_observation.vector.view(1, -1)
+                else:
+                    im_tensor_all = torch.cat((
+                        im_tensor_all,
+                        torch.cat(experience.observation.image_seq, 3).view(im_size)
+                    ), 0)
+                    vec_tensor = torch.cat((vec_tensor, experience.observation.vector.view(1, -1)), 0)
+                    next_im_tensor_all = torch.cat((
+                        next_im_tensor_all,
+                        torch.cat(experience.next_observation.image_seq, 3).view(im_size)
+                    ), 0)
+                    next_vec_tensor = torch.cat((next_vec_tensor, experience.next_observation.vector.view(1, -1)), 0)
 
             # Assuming shaping reward with \Phi(s) = log P(s)
             reward_tensor = self.reward(vec_tensor, next_vec_tensor)
             # print(reward_tensor.cpu().numpy())
 
-            target = reward_tensor + self._reward_discount * q_vec_next
-            loss += (target - q_val).pow(2)
-        loss /= self.batch_size
-        loss.backward()
-        self._optimizer.step()
+            # Get Q(s,a)
+            q_val = self.qnet(im_tensor_all.to(self._device), vec_tensor.to(self._device))
+            mask = torch.zeros((self.batch_size, self.n_action)).to(self._device)
+            mask.scatter_(dim=1, index=action_list, value=1)
+            prediction = torch.sum(q_val * mask, dim=1, keepdim=True)
+
+            # Get max Q(s',*)
+            with torch.no_grad():
+                q_vec_next, _ = torch.max(
+                    self.qnet_support(next_im_tensor_all, next_vec_tensor).detach(),
+                    dim=1,
+                    keepdim=True
+                )
+                target = reward_tensor + self._reward_discount * q_vec_next
+
+            # Get Loss
+            criterion = nn.MSELoss()
+            loss = criterion(prediction, target)
+
+            self._optimizer.zero_grad()
+            loss.backward()
+            self._optimizer.step()
 
     def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor):
         # Shaping reward-enhanced reward
@@ -176,7 +213,7 @@ class DQNAgent:
         # reward -= - 0.1 * vector_obs.pow(2.0).sum()
         # reward *= self._reward_discount/(1.0 - self._reward_discount)
 
-        reward = - 0.05 * vector_obs.pow(2.0).sum()
+        reward = - 0.05 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward
         reward = reward.clamp(min=-10, max=+10)
         return reward.detach()
@@ -203,7 +240,7 @@ class DQNAgent:
             self.shape_obs_image[0],
             self.shape_obs_image[1]
         )).to(self._device)
-        vec_tensor = torch.tensor(raw_observation[1]).to(self._device)
+        vec_tensor = torch.tensor(raw_observation[1]).view(1, self.shape_vector_obs[0]).to(self._device)
         return im_tensor, vec_tensor
 
     def save_network(self, n_experiment: int):
