@@ -5,16 +5,18 @@ from two_resource_dqn.dqn_agent import ReplayBuffer, BufferType, Observation
 
 
 def test_observation():
-    obs = Observation(image=[[0, 0, 0], [0, 0, 0], [0, 0, 0]], vector=[1, 2, 3])
-    assert obs.image == [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-    assert obs.vector == [1, 2, 3]
+    obs = Observation(image=torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]),
+                      vector=torch.tensor([1, 2, 3]))
+    assert pytest.approx(0.0, (obs.image - torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]])).sum())
+    assert pytest.approx(0.0, (obs.vector - torch.tensor([1, 2, 3])).sum())
 
 
 def test_append_one():
     buf = ReplayBuffer(buffer_size=10)
     assert len(buf.buffer_experience) == 0
 
-    obs = Observation(image=[[0, 0, 0], [0, 0, 0], [0, 0, 0]], vector=[1, 2, 3])
+    obs = Observation(image=torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]),
+                      vector=torch.tensor([1, 2, 3]))
     buf.append(observation=obs, action=1, next_observation=obs)
     assert len(buf.buffer_experience) == 1
 
@@ -23,7 +25,8 @@ def test_append_many():
     buf = ReplayBuffer(buffer_size=10)
 
     for i in range(15):
-        obs = Observation(image=[[0, 0, 0], [0, 0, 0], [0, 0, 0]], vector=[1, 2, 3])
+        obs = Observation(image=torch.tensor([[0, 0, 0], [0, 0, 0], [0, 0, 0]]),
+                          vector=torch.tensor([1, 2, 3]))
         buf.append(observation=obs, action=1, next_observation=obs)
 
         v = i + 1
