@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from configparser import ConfigParser
 from mlagents_envs.base_env import TerminalSteps, DecisionSteps
 from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+
 from two_resource_dqn.dqn_agent import DQNAgent
 
 
@@ -15,9 +17,11 @@ class Experiment:
 
     def __init__(self,
                  env: UnityEnvironment,
+                 env_channel: EngineConfigurationChannel,
                  config: ConfigParser,
                  device):
         self.env = env
+        self.env_channel = env_channel
         self._config = config
         self._n_experiment = int(config["experiment"]["n_experiment"])
         self._n_episode = int(config["experiment"]["n_episode"])
@@ -69,6 +73,7 @@ class Experiment:
         plt.ylim([0, self._maximum_survival_time_steps])
         plt.pause(0.01)
         for n in range(self._n_experiment):
+            self.env_channel.set_configuration_parameters(time_scale=10.0)
             survival_time_steps = [0] * self._n_episode
             self.init_agent_params()
             for episode in range(self._n_episode):
@@ -129,10 +134,13 @@ class Experiment:
             self.dqn_agent.eps_e_greedy = 1.0
             return
 
+        if self.dqn_agent.eps_e_greedy == 1.0:
+            self.env_channel.set_configuration_parameters(time_scale=1.0)
+
         if episode in self._eps_checkpoints:
             self._eps -= self._eps_delta
             if self._eps < self._eps_min:
                 self._eps = self._eps_min
-            self.dqn_agent.eps_e_greedy = self._eps
-            print(f"Exploration parameter of e-greedy was updated to {self.dqn_agent.eps_e_greedy}")
+            print(f"Exploration parameter of e-greedy was updated to {self._eps}")
+        self.dqn_agent.eps_e_greedy = self._eps
 

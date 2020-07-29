@@ -135,7 +135,7 @@ class DQNAgent:
 
         # Some visualization
         if self._prev_observation is not None:
-            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[0][next_action]}")
+            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec.cpu()[0][next_action]}")
 
         # Set for next step
         self._im_tensor_queue.append(im_tensor)

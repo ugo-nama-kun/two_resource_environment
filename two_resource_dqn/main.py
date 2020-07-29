@@ -23,7 +23,7 @@ def main(config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(device)
 
-    experiment = Experiment(env=env, config=config, device=device)
+    experiment = Experiment(env=env, env_channel=engine_configuration_channel, config=config, device=device)
     experiment.start()
     env.close()
 
