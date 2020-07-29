@@ -63,31 +63,38 @@ class Experiment:
 
     def start(self):
         fig = plt.figure()
-        line_props = {"linestyle": "--", "color": "k"}
-        plt.plot([self._maximum_survival_time_steps] * self._n_episode, **line_props)
+        line_props = {"linestyle": "-", "color": "r"}
+        line, = plt.plot(range(self._n_episode), [0] * self._n_episode, **line_props)
+        plt.xlim([0, self._n_episode])
+        plt.ylim([0, self._maximum_survival_time_steps])
+        plt.pause(0.01)
         for n in range(self._n_experiment):
-            survival_time_steps = []
+            survival_time_steps = [0] * self._n_episode
             self.init_agent_params()
             for episode in range(self._n_episode):
                 t = 0
                 done = False
-                self.update_eps_scheduled(episode=episode, time_step=sum(survival_time_steps))
+                self.update_eps_scheduled(episode=episode,
+                                          time_step=sum([v for v in survival_time_steps if v is not None]))
                 self.env.reset()
                 self.dqn_agent.reset_for_new_episode()
                 while not done:
-                    print(f"experiment : {n}/{self._n_experiment}, episode : {episode}/{self._n_episode}")
+                    # print(f"experiment : {n}/{self._n_experiment}, episode : {episode}/{self._n_episode}")
                     decision_steps, terminal_steps = self.env.get_steps(self._behavior_name)
                     self.decision_process(decision_steps)
                     done = self.terminal_process(terminal_steps)
                     if done or t == self._maximum_survival_time_steps:
-                        survival_time_steps.append(t)
+                        print("Done.")
+                        survival_time_steps[episode] = t
+                        line.set_data(range(self._n_episode), survival_time_steps)
+                        plt.pause(0.01)
                     else:
                         t += 1
                 print(f"{n}/{self._n_experiment}-th experiment, episodes: {episode}/{self._n_episode}, Score: {t} ")
                 if episode % self._save_network_every == 0:
                     self.dqn_agent.save_network(n_experiment=n)
-            plt.plot(range(self._n_episode), survival_time_steps)
-            plt.pause(0.001)
+            plt.plot(x=range(self._n_episode), y=survival_time_steps)
+            plt.pause(0.01)
             self.dqn_agent.save_network(n_experiment=n)
 
         print("Experiment Done.")

@@ -1,12 +1,11 @@
 import random
-from collections import deque, namedtuple
-from enum import Enum, auto
-from typing import NamedTuple
-
-import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
+
+from collections import deque
+from enum import Enum
+from typing import NamedTuple
 
 
 class QNet(nn.Module):
@@ -175,8 +174,8 @@ class DQNAgent:
             self.time_tick += 1
 
         # Some visualization
-        if self._prev_observation is not None:
-            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
+        # if self._prev_observation is not None:
+        #     print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
 
         # Set for next step
         self._prev_observation = obs_now
