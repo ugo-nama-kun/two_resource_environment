@@ -4,8 +4,7 @@ import torch
 import torch.nn as nn
 
 from collections import deque
-from enum import Enum
-from typing import NamedTuple
+from typing import NamedTuple, Optional, Tuple
 
 
 class QNet(nn.Module):
@@ -35,13 +34,8 @@ class QNet(nn.Module):
         return output
 
 
-class BufferType(Enum):
-    observation = 0
-    action = 1
-
-
 class Observation(NamedTuple):
-    image: torch.Tensor
+    image: Tuple[torch.Tensor]
     vector: torch.Tensor
 
 
@@ -104,10 +98,10 @@ class DQNAgent:
         self.n_action = n_action
         self._device = device
         self.qnet = QNet(n_images=self.input_time_horizon,
-                         vector_dim=2,
+                         vector_dim=shape_vector_obs[0],
                          n_action=n_action).to(device)
-        self.qnet_support = QNet(n_images=1,
-                                 vector_dim=2,
+        self.qnet_support = QNet(n_images=self.input_time_horizon,
+                                 vector_dim=shape_vector_obs[0],
                                  n_action=n_action).to(device)
         self.qnet_support.load_state_dict(self.qnet.state_dict())
 
@@ -132,10 +126,12 @@ class DQNAgent:
         self._reward_discount = float(config["qn"]["reward_discount"])
         self.__eps_e_greedy = eps_start
         self.time_tick = 0
-        self._prev_observation = None
-        self._prev_action = None
+        self._prev_observation: Optional[Observation] = None
+        self._prev_action: Optional[int] = None
+        self._prev_im_tensor: Optional[torch.Tensor] = None
 
     def reset_for_new_episode(self):
+        self._prev_im_tensor = None
         self._prev_observation = None
         self._prev_action = None
 
@@ -144,8 +140,14 @@ class DQNAgent:
             im_tensor, vec_tensor = self.obs_to_tensor(observation)
 
             # Stock into the replay buffer
-            obs_now = Observation(image=im_tensor, vector=vec_tensor)
-            if None not in (self._prev_action, self._prev_observation):
+            if self._prev_im_tensor is None:
+                # Use same image at the first step
+                obs_now = Observation(image=tuple([im_tensor, im_tensor]), vector=vec_tensor)
+            else:
+                obs_now = Observation(image=tuple([self._prev_im_tensor, im_tensor]), vector=vec_tensor)
+
+            # Add experience
+            if None not in (self._prev_action, self._prev_observation) and not done:
                 self.replay_buffer.append(
                     observation=self._prev_observation,
                     action=self._prev_action,
@@ -153,7 +155,10 @@ class DQNAgent:
                 )
 
             # Get Action
-            greedy_action, q_vec = self.get_greedy_action(im_tensor.to(self._device), vec_tensor.to(self._device))
+            greedy_action, q_vec = self.get_greedy_action(
+                prev_im_tensor=self._prev_im_tensor,
+                im_tensor=im_tensor,
+                vec_tensor=vec_tensor)
             if random.random() < self.eps_e_greedy:
                 next_action = random.choice(range(self.n_action))
             else:
@@ -175,10 +180,11 @@ class DQNAgent:
             self.time_tick += 1
 
         # Some visualization
-        # if self._prev_observation is not None:
-        #     print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
+        if self._prev_observation is not None:
+            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec[next_action]}")
 
         # Set for next step
+        self._prev_im_tensor = im_tensor
         self._prev_observation = obs_now
         self._prev_action = next_action
 
@@ -189,20 +195,24 @@ class DQNAgent:
         data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
         loss = torch.zeros(1).to(self._device)
         for experience in data_batch:
+            # Get Q(s,a)
             action = experience.action
-            im_tensor = experience.observation.image.to(self._device)
-            vec_tensor = experience.observation.vector.to(self._device)
-            q_val = self.qnet(im_tensor, vec_tensor)[action]
+            im_tensor_all = torch.cat(experience.observation.image, 0)
+            vec_tensor = experience.observation.vector
+            q_val = self.qnet(im_tensor_all, vec_tensor)[action]
 
-            next_im_tensor = experience.next_observation.image.to(self._device)
-            next_vec_tensor = experience.next_observation.vector.to(self._device)
-            q_vec_next = self.qnet_support(next_im_tensor, next_vec_tensor).max().detach()
+            with torch.no_grad():
+                # Get max Q(s',*)
+                next_im_tensor_all = torch.cat(experience.next_observation.image, 0)
+                next_vec_tensor = experience.next_observation.vector
+                q_vec_next = self.qnet_support(next_im_tensor_all, next_vec_tensor).max().detach()
+
             # Assuming shaping reward with \Phi(s) = log P(s)
-            reward_tensor = self.reward(vec_tensor, next_vec_tensor).to(self._device)
+            reward_tensor = self.reward(vec_tensor, next_vec_tensor)
             # print(reward_tensor.cpu().numpy())
 
             target = reward_tensor + self._reward_discount * q_vec_next
-            loss += (target - q_val).clamp(min=-1, max=1).pow(2)
+            loss += (target - q_val).pow(2)
         loss /= self.batch_size
         loss.backward()
         self._optimizer.step()
@@ -213,9 +223,9 @@ class DQNAgent:
         # reward -= - 0.1 * vector_obs.pow(2.0).sum()
         # reward *= self._reward_discount/(1.0 - self._reward_discount)
 
-        reward = - 0.01 * vector_obs.pow(2.0).sum()
+        reward = - 0.05 * vector_obs.pow(2.0).sum()
         # Clip reward
-        reward = reward.clamp(min=-3, max=+3)
+        reward = reward.clamp(min=-10, max=+10)
         return reward.detach()
 
     @property
@@ -226,8 +236,12 @@ class DQNAgent:
     def eps_e_greedy(self, v):
         self.__eps_e_greedy = v
 
-    def get_greedy_action(self, im_tensor, vec_tensor):
-        q_val = self.qnet(im_tensor, vec_tensor).detach()
+    def get_greedy_action(self, prev_im_tensor, im_tensor, vec_tensor):
+        if prev_im_tensor is not None:
+            im_all = torch.cat([prev_im_tensor, im_tensor], 1)
+        else:
+            im_all = torch.cat([im_tensor, im_tensor], 1)
+        q_val = self.qnet(im_all, vec_tensor).detach()
         _, index = q_val.topk(1)
         return index[0], q_val
 
@@ -237,8 +251,8 @@ class DQNAgent:
             self.shape_obs_image[2],
             self.shape_obs_image[0],
             self.shape_obs_image[1]
-        ))
-        vec_tensor = torch.tensor(raw_observation[1])
+        )).to(self._device)
+        vec_tensor = torch.tensor(raw_observation[1]).to(self._device)
         return im_tensor, vec_tensor
 
     def save_network(self, n_experiment: int):
