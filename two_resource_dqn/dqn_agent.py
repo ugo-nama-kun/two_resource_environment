@@ -209,11 +209,11 @@ class DQNAgent:
 
     def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor):
         # Shaping reward-enhanced reward
-        # reward = - 0.1 * next_vector_obs.pow(2.0).sum()
-        # reward -= - 0.1 * vector_obs.pow(2.0).sum()
-        # reward *= self._reward_discount/(1.0 - self._reward_discount)
+        reward = - 0.1 * next_vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
+        reward -= - 0.1 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
+        reward *= self._reward_discount/(1.0 - self._reward_discount)
 
-        reward = - 0.05 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
+        # reward = - 0.05 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward
         reward = reward.clamp(min=-10, max=+10)
         return reward.detach()
