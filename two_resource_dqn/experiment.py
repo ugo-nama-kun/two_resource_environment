@@ -123,10 +123,10 @@ class Experiment:
         # Terminal steps returns the ids of agents at the terminal
         done = False
         for agent_id_terminated in terminal_steps:
-            image = terminal_steps[agent_id_terminated].obs[0]
-            vector_obs = terminal_steps[agent_id_terminated].obs[1]
+            # image = terminal_steps[agent_id_terminated].obs[0]
+            # vector_obs = terminal_steps[agent_id_terminated].obs[1]
             done = True
-            self.dqn_agent.step(observation=(image, vector_obs), done=done)
+            # self.dqn_agent.step(observation=(image, vector_obs), done=done)
         return done
 
     def update_eps_scheduled(self, episode,  time_step):

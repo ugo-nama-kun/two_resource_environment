@@ -7,6 +7,7 @@ from collections import deque
 from typing import Optional, Deque
 
 from two_resource_dqn.replay_buffer import ReplayBuffer, Observation
+from two_resource_dqn.util import ActionType
 
 
 class QNet(nn.Module):
@@ -135,7 +136,10 @@ class DQNAgent:
 
         # Some visualization
         if self._prev_observation is not None:
-            print(f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, Q-val : {q_vec.cpu()[0][next_action]}")
+            s = f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, "
+            s += f"Q-val : {q_vec.cpu()[0][next_action]}, "
+            s += f"Behavior : {ActionType[next_action]}"
+            print(s)
 
         # Set for next step
         self._im_tensor_queue.append(im_tensor)
@@ -231,7 +235,7 @@ class DQNAgent:
             im_all = torch.cat(tuple(im_tensor_queue), 1).to(self._device)
             q_val = self.qnet(im_all, vec_tensor).detach()
             _, index = q_val.topk(1)
-        return index.cpu().numpy()[0], q_val
+        return index.cpu().numpy()[0, 0], q_val
 
     def obs_to_tensor(self, raw_observation):
         im_tensor = torch.tensor(raw_observation[0]).view((
