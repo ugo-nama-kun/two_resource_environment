@@ -193,7 +193,7 @@ class DQNAgent:
             # Get max Q(s',*)
             with torch.no_grad():
                 q_vec_next, _ = torch.max(
-                    self.qnet_support(next_im_tensor_all, next_vec_tensor).detach(),
+                    self.qnet_support(next_im_tensor_all, next_vec_tensor),
                     dim=1,
                     keepdim=True
                 )
@@ -201,7 +201,7 @@ class DQNAgent:
 
             # Get Loss
             criterion = nn.MSELoss()
-            loss = criterion(prediction, target)
+            loss = criterion(prediction, target.detach())
 
             self._optimizer.zero_grad()
             loss.backward()
@@ -215,7 +215,7 @@ class DQNAgent:
 
         # reward = - 0.05 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward
-        reward = reward.clamp(min=-10, max=+10)
+        reward = reward.clamp(min=-3, max=+3)
         return reward.detach()
 
     @property
@@ -228,10 +228,10 @@ class DQNAgent:
 
     def get_greedy_action(self, im_tensor_queue: Deque[torch.Tensor], vec_tensor):
         with torch.no_grad():
-            im_all = torch.cat(tuple(im_tensor_queue), 1)
+            im_all = torch.cat(tuple(im_tensor_queue), 1).to(self._device)
             q_val = self.qnet(im_all, vec_tensor).detach()
             _, index = q_val.topk(1)
-        return index[0], q_val
+        return index.cpu().numpy()[0], q_val
 
     def obs_to_tensor(self, raw_observation):
         im_tensor = torch.tensor(raw_observation[0]).view((
