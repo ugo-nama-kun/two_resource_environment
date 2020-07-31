@@ -191,8 +191,8 @@ class DQNAgent:
         reward *= self._reward_discount/(1.0 - self._reward_discount)
 
         # Action penalty
-        if ActionType.NONE.value != action:
-            reward -= 0.1
+        if action not in (ActionType.NONE.value, ActionType.LEFT.value, ActionType.RIGHT.value):
+            reward -= 0.001
 
         # reward = - 0.01 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward

@@ -96,7 +96,7 @@ class Experiment:
                     else:
                         t += 1
                 print(f"{n}/{self._n_experiment}-th experiment, episodes: {episode}/{self._n_episode}, Score: {t} ")
-                if episode % self._save_network_every == 0:
+                if episode + 1 % self._save_network_every == 0:
                     self.dqn_agent.save_network(n_experiment=n)
             plt.plot(range(self._n_episode), survival_time_steps)
             plt.pause(0.01)
