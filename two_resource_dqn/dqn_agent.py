@@ -13,7 +13,7 @@ from two_resource_dqn.util import ActionType
 class QNet(nn.Module):
     def __init__(self, n_images, vector_dim, n_action):
         super(QNet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=3 * n_images, out_channels=8, kernel_size=3, stride=1)
+        self.conv1 = nn.Conv2d(in_channels=3 * n_images, out_channels=8, kernel_size=5, stride=2)
         self.bn1 = nn.BatchNorm2d(8)
         self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=3, stride=1)
         self.bn2 = nn.BatchNorm2d(16)
@@ -22,6 +22,8 @@ class QNet(nn.Module):
 
         self.fc1 = nn.Linear(in_features=12594, out_features=400)
         self.fc2 = nn.Linear(in_features=400, out_features=n_action)
+        self.fc2.weight.data.fill_(0.0)
+        self.fc2.bias.data.fill_(0.0)
 
         self.act_conv = nn.Softplus()
         self.act_fc = nn.Softplus()
@@ -97,6 +99,8 @@ class DQNAgent:
                 # Use same image at the first step
                 for i in range(self.input_time_horizon):
                     self._im_tensor_queue.append(im_tensor)
+            else:
+                self._im_tensor_queue.append(im_tensor)
 
             # Construct a single observation
             obs_now = Observation(image_seq=tuple(self._im_tensor_queue), vector=vec_tensor)
@@ -115,9 +119,9 @@ class DQNAgent:
                 vec_tensor=vec_tensor
             )
             if random.random() < self.eps_e_greedy:
-                next_action = random.choice(range(self.n_action))
+                action = random.choice(range(self.n_action))
             else:
-                next_action = greedy_action
+                action = greedy_action
 
         # Train Agent
         if self.replay_buffer.n_experience > self.training_start_from:
@@ -136,19 +140,25 @@ class DQNAgent:
 
         # Some visualization
         if self._prev_observation is not None:
-            s = f"reward : {self.reward(self._prev_observation.vector, vec_tensor)}, "
-            s += f"Q-val : {q_vec.cpu()[0][next_action]}, "
-            s += f"Behavior : {ActionType[next_action]}"
+            s = f"reward : {self.reward(self._prev_observation.vector, vec_tensor).cpu()[0,0]}, "
+            s += f"Q-val : {q_vec.cpu()[action]}, "
+            s += f"Behavior : {ActionType[action]}"
             print(s)
 
         # Set for next step
-        self._im_tensor_queue.append(im_tensor)
         self._prev_observation = obs_now
-        self._prev_action = next_action
+        self._prev_action = action
 
-        return next_action
+        return action
 
     def train(self):
+        criterion = nn.MSELoss()
+        im_size = (
+            1,
+            self.input_time_horizon * self.shape_obs_image[2],
+            self.shape_obs_image[0],
+            self.shape_obs_image[1]
+        )
         for epoch in range(self.epoch):
             data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
 
@@ -158,14 +168,9 @@ class DQNAgent:
             vec_tensor = None
             next_vec_tensor = None
             action_list = torch.empty((self.batch_size, 1), dtype=torch.long).to(self._device)
-            im_size = (
-                1,
-                self.input_time_horizon * self.shape_obs_image[2],
-                self.shape_obs_image[0],
-                self.shape_obs_image[1]
-            )
+
             for i, experience in enumerate(data_batch):
-                action_list[i] = experience.action
+                action_list[i] = torch.tensor(experience.action)
 
                 if i == 0:
                     im_tensor_all = torch.cat(experience.observation.image_seq, 1).view(im_size)
@@ -184,8 +189,9 @@ class DQNAgent:
                     ), 0)
                     next_vec_tensor = torch.cat((next_vec_tensor, experience.next_observation.vector.view(1, -1)), 0)
 
-            # Assuming shaping reward with \Phi(s) = log P(s)
-            reward_tensor = self.reward(vec_tensor, next_vec_tensor)
+            self._optimizer.zero_grad()
+
+            reward_tensor = self.reward(vec_tensor, next_vec_tensor).to(self._device)
             # print(reward_tensor.cpu().numpy())
 
             # Get Q(s,a)
@@ -193,33 +199,40 @@ class DQNAgent:
             mask = torch.zeros((self.batch_size, self.n_action)).to(self._device)
             mask.scatter_(dim=1, index=action_list, value=1)
             prediction = torch.sum(q_val * mask, dim=1, keepdim=True)
+            # print(f"q: {q_val}")
+            # print(f"mask: {mask}")
+            # print(f"pred: {prediction}")
 
             # Get max Q(s',*)
-            with torch.no_grad():
-                q_vec_next, _ = torch.max(
-                    self.qnet_support(next_im_tensor_all, next_vec_tensor),
-                    dim=1,
-                    keepdim=True
-                )
-                target = reward_tensor + self._reward_discount * q_vec_next
+            q_next = self.qnet_support(next_im_tensor_all.to(self._device), next_vec_tensor.to(self._device))
+            q_val_next, _ = torch.max(
+                q_next,
+                dim=1,
+                keepdim=True
+            )
+            target = reward_tensor.detach() + self._reward_discount * q_val_next.detach()
+            # print(f"q next: {q_next}")
+            # print(f"q next max: {q_val_next}")
+            # print(f"reward: {reward_tensor}")
+            # print(f"target: {target}")
 
             # Get Loss
-            criterion = nn.MSELoss()
             loss = criterion(prediction, target.detach())
+            # print(f"loss: {loss}")
 
-            self._optimizer.zero_grad()
             loss.backward()
             self._optimizer.step()
 
     def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor):
         # Shaping reward-enhanced reward
-        reward = - 0.1 * next_vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
-        reward -= - 0.1 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
+        # Assuming shaping reward with \Phi(s) = log P(s) / (1 - gamma)
+        reward = - 0.01 * next_vector_obs.pow(2.0).sum(dim=1).view(next_vector_obs.shape[0], -1)
+        reward -= - 0.01 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         reward *= self._reward_discount/(1.0 - self._reward_discount)
 
-        # reward = - 0.05 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
+        # reward = - 0.01 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward
-        reward = reward.clamp(min=-3, max=+3)
+        reward = reward.clamp(min=-5, max=+5)
         return reward.detach()
 
     @property
@@ -233,9 +246,9 @@ class DQNAgent:
     def get_greedy_action(self, im_tensor_queue: Deque[torch.Tensor], vec_tensor):
         with torch.no_grad():
             im_all = torch.cat(tuple(im_tensor_queue), 1).to(self._device)
-            q_val = self.qnet(im_all, vec_tensor).detach()
+            q_val = self.qnet(im_all, vec_tensor.to(self._device)).detach()[0]
             _, index = q_val.topk(1)
-        return index.cpu().numpy()[0, 0], q_val
+        return index.cpu().numpy()[0], q_val
 
     def obs_to_tensor(self, raw_observation):
         im_tensor = torch.tensor(raw_observation[0]).view((
@@ -243,8 +256,8 @@ class DQNAgent:
             self.shape_obs_image[2],
             self.shape_obs_image[0],
             self.shape_obs_image[1]
-        )).to(self._device)
-        vec_tensor = torch.tensor(raw_observation[1]).view(1, self.shape_vector_obs[0]).to(self._device)
+        ))
+        vec_tensor = torch.tensor(raw_observation[1]).view(1, self.shape_vector_obs[0])
         return im_tensor, vec_tensor
 
     def save_network(self, n_experiment: int):

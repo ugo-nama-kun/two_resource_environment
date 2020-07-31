@@ -84,7 +84,7 @@ class Experiment:
                 self.env.reset()
                 self.dqn_agent.reset_for_new_episode()
                 while not done:
-                    # print(f"experiment : {n}/{self._n_experiment}, episode : {episode}/{self._n_episode}")
+                    print(f"experiment : {n}/{self._n_experiment}, episode : {episode}/{self._n_episode}, exploration: {self._eps}")
                     decision_steps, terminal_steps = self.env.get_steps(self._behavior_name)
                     self.decision_process(decision_steps)
                     done = self.terminal_process(terminal_steps)
@@ -133,8 +133,7 @@ class Experiment:
         if time_step < self._training_start_from:
             self.dqn_agent.eps_e_greedy = 1.0
             return
-
-        if self.dqn_agent.eps_e_greedy == 1.0:
+        else:
             self.env_channel.set_configuration_parameters(time_scale=1.0)
 
         if episode in self._eps_checkpoints:
