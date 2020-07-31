@@ -1,8 +1,9 @@
+from enum import Enum, auto
 
-ActionType = {
-    0: "None",
-    1: "Forward",
-    2: "Left",
-    3: "Right",
-    4: "Eat Behavior"
-}
+
+class ActionType(Enum):
+    NONE = 0
+    FORWARD = auto()
+    LEFT = auto()
+    RIGHT = auto()
+    EAT_BEHAVIOR = auto()

@@ -142,10 +142,10 @@ class DQNAgent:
 
         # Some visualization
         if self._prev_observation is not None:
-            s = f"reward : {self.reward(self._prev_observation.vector, vec_tensor).cpu()[0,0]}, "
+            s = f"reward : {self.reward(self._prev_observation.vector, vec_tensor, action).cpu()[0,0]}, "
             s += f"Q-val : {q_vec.cpu()[action]}, "
-            s += f"Behavior : {ActionType[action]}"
-            s += f" <-- {'Random Behavior' if is_random else 'Greedy'}"
+            s += f"Behavior : {ActionType(action).name}"
+            s += f" <-- {'Random' if is_random else 'Greedy'}"
             print(s)
 
         # Set for next step
@@ -173,7 +173,7 @@ class DQNAgent:
             next_im_tensor = torch.cat(experience.next_observation.image_seq, 1).view(im_size).to(self._device)
             next_vec_tensor = experience.next_observation.vector.to(self._device)
             max_next_q = self.qnet_support(next_im_tensor, next_vec_tensor)[0].max().detach()
-            reward_tensor = self.reward(vec_tensor, next_vec_tensor)[0].to(self._device)
+            reward_tensor = self.reward(vec_tensor, next_vec_tensor, action)[0].to(self._device)
             # print(reward_tensor.cpu().numpy())
             # print(f"q: {q_val}, r: {reward_tensor}, qnext: {max_next_q}")
 
@@ -183,84 +183,16 @@ class DQNAgent:
         loss.backward()
         self._optimizer.step()
 
-    # def train(self):
-    #     criterion = nn.MSELoss()
-    #     im_size = (
-    #         1,
-    #         self.input_time_horizon * self.shape_obs_image[2],
-    #         self.shape_obs_image[0],
-    #         self.shape_obs_image[1]
-    #     )
-    #     for epoch in range(self.epoch):
-    #         data_batch = self.replay_buffer.get_batch_experience(batch_size=self.batch_size)
-    #
-    #         # Make a batch data
-    #         im_tensor_all = None
-    #         next_im_tensor_all = None
-    #         vec_tensor = None
-    #         next_vec_tensor = None
-    #         action_list = torch.empty((self.batch_size, 1), dtype=torch.long).to(self._device)
-    #
-    #         for i, experience in enumerate(data_batch):
-    #             action_list[i] = torch.tensor(experience.action)
-    #
-    #             if i == 0:
-    #                 im_tensor_all = torch.cat(experience.observation.image_seq, 1).view(im_size)
-    #                 vec_tensor = experience.observation.vector.view(1, -1)
-    #                 next_im_tensor_all = torch.cat(experience.next_observation.image_seq, 1).view(im_size)
-    #                 next_vec_tensor = experience.next_observation.vector.view(1, -1)
-    #             else:
-    #                 im_tensor_all = torch.cat((
-    #                     im_tensor_all,
-    #                     torch.cat(experience.observation.image_seq, 3).view(im_size)
-    #                 ), 0)
-    #                 vec_tensor = torch.cat((vec_tensor, experience.observation.vector.view(1, -1)), 0)
-    #                 next_im_tensor_all = torch.cat((
-    #                     next_im_tensor_all,
-    #                     torch.cat(experience.next_observation.image_seq, 3).view(im_size)
-    #                 ), 0)
-    #                 next_vec_tensor = torch.cat((next_vec_tensor, experience.next_observation.vector.view(1, -1)), 0)
-    #
-    #         self._optimizer.zero_grad()
-    #
-    #         reward_tensor = self.reward(vec_tensor, next_vec_tensor).to(self._device)
-    #         # print(reward_tensor.cpu().numpy())
-    #
-    #         # Get Q(s,a)
-    #         q_val = self.qnet(im_tensor_all.to(self._device), vec_tensor.to(self._device))
-    #         mask = torch.zeros((self.batch_size, self.n_action)).to(self._device)
-    #         mask.scatter_(dim=1, index=action_list, value=1)
-    #         prediction = torch.sum(q_val * mask, dim=1, keepdim=True)
-    #         # print(f"q: {q_val}")
-    #         # print(f"mask: {mask}")
-    #         # print(f"pred: {prediction}")
-    #
-    #         # Get max Q(s',*)
-    #         q_next = self.qnet_support(next_im_tensor_all.to(self._device), next_vec_tensor.to(self._device))
-    #         q_val_next, _ = torch.max(
-    #             q_next,
-    #             dim=1,
-    #             keepdim=True
-    #         )
-    #         target = reward_tensor.detach() + self._reward_discount * q_val_next.detach()
-    #         # print(f"q next: {q_next}")
-    #         # print(f"q next max: {q_val_next}")
-    #         # print(f"reward: {reward_tensor}")
-    #         # print(f"target: {target}")
-    #
-    #         # Get Loss
-    #         loss = criterion(prediction, target.detach())
-    #         # print(f"loss: {loss}")
-    #
-    #         loss.backward()
-    #         self._optimizer.step()
-
-    def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor):
+    def reward(self, vector_obs: torch.Tensor, next_vector_obs: torch.Tensor, action: int):
         # Shaping reward-enhanced reward
         # Assuming shaping reward with \Phi(s) = log P(s) / (1 - gamma)
         reward = - 0.01 * next_vector_obs.pow(2.0).sum(dim=1).view(next_vector_obs.shape[0], -1)
         reward -= - 0.01 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         reward *= self._reward_discount/(1.0 - self._reward_discount)
+
+        # Action penalty
+        if ActionType.NONE.value != action:
+            reward -= 0.1
 
         # reward = - 0.01 * vector_obs.pow(2.0).sum(dim=1).view(vector_obs.shape[0], -1)
         # Clip reward
