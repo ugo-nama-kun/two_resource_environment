@@ -9,7 +9,7 @@ This feature, called "Homeostasis" (Feedback mechanism) or "Allostasis" (Model-P
 
 (From [Ashby](https://www.amazon.com/Design-Brain-Origin-Adaptive-Behavior/dp/1614277567/ref=sr_1_3?dchild=1&qid=1596298884&refinements=p_27%3AWilliam+Ross+Ashby&s=books&sr=1-3-catcorr&text=William+Ross+Ashby))
 
-Because of the universality and the generality of the problem, the optimal control of the internal state of the agent offers the theoretically-grounded treatment of the survival of the "natural agent" (animals). Fortunately, Dawkins says the survival of individuals can be seen as an approximation of the objective of the animals in [The Selfish Gene](https://en.wikipedia.org/wiki/The_Selfish_Gene) Recent progress of the theoretical neuroscience is starting to discuss a "regulator" perspective of the animal behavior, integrating the Bayesian view of the control problem. 
+Because of the universality and the generality of the problem, the optimal control of the internal state of the agent offers the theoretically-grounded treatment of the survival of the "natural agent" (animals). Fortunately, Dawkins says the survival of individuals can be seen as an approximation of the objective of the animals in [The Selfish Gene](https://en.wikipedia.org/wiki/The_Selfish_Gene). Recent progress of the theoretical neuroscience is starting to discuss a "regulator" perspective of the animal behavior, integrating the Bayesian view of the control problem. 
 
 <p align="center">
   <img width="400" height="400" src="https://user-images.githubusercontent.com/1684732/89105835-b0b73600-d45f-11ea-8c81-45c99d4a1af8.png">
