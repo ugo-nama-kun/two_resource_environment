@@ -7,7 +7,7 @@ This feature, called "Homeostasis" (Feedback mechanism) or "Allostasis" (Model-P
   <img width="300" height="300" src="https://user-images.githubusercontent.com/1684732/89105612-78aef380-d45d-11ea-8ba6-e739c9c16774.png">
 </p>
 
-(From [Ashby](https://www.amazon.com/Design-Brain-Origin-Adaptive-Behavior/dp/1614277567/ref=sr_1_3?dchild=1&qid=1596298884&refinements=p_27%3AWilliam+Ross+Ashby&s=books&sr=1-3-catcorr&text=William+Ross+Ashby))
+(From "Design for a Brain: The Origin of Adaptive Behavior" by [Ashby](https://www.amazon.com/Design-Brain-Origin-Adaptive-Behavior/dp/1614277567/ref=sr_1_3?dchild=1&qid=1596298884&refinements=p_27%3AWilliam+Ross+Ashby&s=books&sr=1-3-catcorr&text=William+Ross+Ashby))
 
 Because of the universality and the generality of the problem, the optimal control of the internal state of the agent offers the theoretically-grounded treatment of the survival of the "natural agent" (animals). Fortunately, Dawkins says the survival of individuals can be seen as an approximation of the objective of the animals in [The Selfish Gene](https://en.wikipedia.org/wiki/The_Selfish_Gene). Recent progress of the theoretical neuroscience is starting to discuss a "regulator" perspective of the animal behavior, integrating the Bayesian view of the control problem. 
 
@@ -15,7 +15,7 @@ Because of the universality and the generality of the problem, the optimal contr
   <img width="400" height="400" src="https://user-images.githubusercontent.com/1684732/89105835-b0b73600-d45f-11ea-8c81-45c99d4a1af8.png">
 </p>
 
-(From [Seth](https://open-mind.net/DOI?isbn=9783958570108))
+(From "The Cybernetic Bayesian Brain" by [Seth](https://open-mind.net/DOI?isbn=9783958570108))
   
 Animals regulate multiple resources through behavior control. This feature is treated in the field of the [food selection](https://science.sciencemag.org/content/307/5706/111.abstract) research or the nutrient selection. This behavior can be [observed in insects too](https://royalsocietypublishing.org/doi/full/10.1098/rspb.2011.2410). Researchers of the theoretical animal behavior suggested the "two-resource problem" as a simplest but concrete form of the nutrient selection problem (image below). The agent has sensor for nutrient detection, interoceptive nutrient level sensors, and manually implemented high-level foraging behaviors for two nutrient resources.
 
@@ -23,7 +23,8 @@ Animals regulate multiple resources through behavior control. This feature is tr
   <img width="400" height="400" src="https://user-images.githubusercontent.com/1684732/89105594-469d9180-d45d-11ea-944c-367bab8b7c68.png">
 </p>
 
-(Two-resource problem overview, From  [McFarland & Spiery](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.47.6775&rep=rep1&type=pdf))
+(Two-resource problem overview, From "Basic Cycles, Utility and Opportunism
+in Self-Suffcient Robots" by [McFarland & Spier](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.47.6775&rep=rep1&type=pdf))
 
 In this project of my research, I treated the problem of the homeostasis and the survival as the stochastic optimal control problem. The agent receives interoceptive signals from the body (red & blue resource levels) and two-steps RGB vision inputs. Agent has only primitive actions like "go forward", "turn left" or "eat it". Behavior optimization from the motor control level will be done in the future research. 
 
