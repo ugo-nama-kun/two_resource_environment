@@ -1,4 +1,5 @@
 import random
+from distutils.util import strtobool
 
 import torch
 import torch.nn as nn
@@ -56,9 +57,11 @@ class DQNAgent:
                          vector_dim=shape_vector_obs[0],
                          n_action=n_action).to(device)
         # Load network if needed
-        if bool(config["experiment"]["load_network_from_file"]) is True:
-            print("Load Network")
+        if strtobool(config["experiment"]["load_network_from_file"]) is True:
+            print("-----Load Network")
             self.qnet.load_state_dict(torch.load(config["experiment"]["file_path"]))
+        else:
+            print("---- Learn from scratch")
 
         self.qnet_support = QNet(n_images=self.input_time_horizon,
                                  vector_dim=shape_vector_obs[0],
