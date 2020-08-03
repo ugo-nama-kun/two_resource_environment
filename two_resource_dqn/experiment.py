@@ -88,7 +88,7 @@ class Experiment:
                     self.decision_process(decision_steps)
                     done = self.terminal_process(terminal_steps)
                     if done or t >= self._maximum_survival_time_steps:
-                        print("Epispde Done.")
+                        print("Episode Done.")
                         survival_time_steps[episode] = t
                         line.set_data(range(self._n_episode), survival_time_steps)
                         plt.pause(0.01)
