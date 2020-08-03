@@ -51,9 +51,15 @@ class DQNAgent:
         self.shape_vector_obs = shape_vector_obs  # Like  (2,)
         self.n_action = n_action
         self._device = device
+
         self.qnet = QNet(n_images=self.input_time_horizon,
                          vector_dim=shape_vector_obs[0],
                          n_action=n_action).to(device)
+        # Load network if needed
+        if bool(config["experiment"]["load_network_from_file"]) is True:
+            print("Load Network")
+            self.qnet.load_state_dict(torch.load(config["experiment"]["file_path"]))
+
         self.qnet_support = QNet(n_images=self.input_time_horizon,
                                  vector_dim=shape_vector_obs[0],
                                  n_action=n_action).to(device)

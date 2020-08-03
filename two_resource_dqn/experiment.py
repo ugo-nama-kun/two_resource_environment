@@ -73,7 +73,6 @@ class Experiment:
         plt.ylim([0, self._maximum_survival_time_steps])
         plt.pause(0.01)
         for n in range(self._n_experiment):
-            self.env_channel.set_configuration_parameters(time_scale=10.0)
             survival_time_steps = [0] * self._n_episode
             self.init_agent_params()
             for episode in range(self._n_episode):
@@ -88,8 +87,8 @@ class Experiment:
                     decision_steps, terminal_steps = self.env.get_steps(self._behavior_name)
                     self.decision_process(decision_steps)
                     done = self.terminal_process(terminal_steps)
-                    if done or t == self._maximum_survival_time_steps:
-                        print("Done.")
+                    if done or t >= self._maximum_survival_time_steps:
+                        print("Epispde Done.")
                         survival_time_steps[episode] = t
                         line.set_data(range(self._n_episode), survival_time_steps)
                         plt.pause(0.01)
@@ -133,8 +132,6 @@ class Experiment:
         if time_step < self._training_start_from:
             self.dqn_agent.eps_e_greedy = 1.0
             return
-        else:
-            self.env_channel.set_configuration_parameters(time_scale=1.0)
 
         if episode in self._eps_checkpoints:
             self._eps -= self._eps_delta
