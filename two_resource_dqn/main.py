@@ -15,7 +15,7 @@ def show_config(config: configparser.ConfigParser):
 
 
 def main(config):
-    env_name = "./unity_env/TwoResourceProblem"
+    env_name = "./unity_env_vr/TwoResourceProblemVR"
     engine_configuration_channel = EngineConfigurationChannel()
     env = UnityEnvironment(file_name=env_name,
                            seed=1,
