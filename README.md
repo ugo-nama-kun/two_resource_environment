@@ -1,7 +1,7 @@
 # Two Reource Problem 
 ## Background and Motivation
 One of the fundamental feature of the animal behavior is the stability of the internal state of the body. 
-This feature, called "Homeostasis" (Feedback mechanism) or "Allostasis" (Model-Predictive mechanism), have been received attentions since the early stage og the artificial intelligence. One of the origin of these insight in the artificial intelligence context would be the Ashby's Homeostat and the concept of the "Ultra-stable system". He rigorously treated the problem of survival in the general environment as a problem of the regulation of the interoceptive control through the behavior selection. This is a concept of the classical cybernetics.
+This feature, called "Homeostasis" (Feedback mechanism) or "Allostasis" (Model-Predictive mechanism), have been received attentions since the early stage of the artificial intelligence. One of the origin of these insight in the artificial intelligence context would be the Ashby's Homeostat and the concept of the "Ultra-stable system". He rigorously treated the problem of survival in the general environment as a problem of the regulation of the interoceptive control through the behavior selection. This is a concept of the classical cybernetics.
 
 <p align="center">
   <img width="300" height="300" src="https://user-images.githubusercontent.com/1684732/89105612-78aef380-d45d-11ea-8ba6-e739c9c16774.png">
@@ -17,7 +17,7 @@ Because of the universality and the generality of the problem, the optimal contr
 
 (From "The Cybernetic Bayesian Brain" by [Seth](https://open-mind.net/DOI?isbn=9783958570108))
   
-Animals regulate multiple resources through behavior control. This feature is treated in the field of the [food selection](https://science.sciencemag.org/content/307/5706/111.abstract) research or the nutrient selection. This behavior can be [observed in insects too](https://royalsocietypublishing.org/doi/full/10.1098/rspb.2011.2410). Researchers of the theoretical animal behavior suggested the "two-resource problem" as a simplest but concrete form of the nutrient selection problem (image below). The agent has sensor for nutrient detection, interoceptive nutrient level sensors, and manually implemented high-level foraging behaviors for two nutrient resources.
+Animals regulate multiple resources through behavior control. This feature is treated in the field of the [food selection](https://science.sciencemag.org/content/307/5706/111.abstract) research or the nutrient selection. This behavior can be [observed in insects too](https://royalsocietypublishing.org/doi/full/10.1098/rspb.2011.2410). Researchers of the theoretical animal behavior proposed the "two-resource problem" as a simplest but concrete form of the nutrient selection problem (image below). The agent has sensor for nutrient detection, interoceptive nutrient level sensors, and manually implemented high-level foraging behaviors for two nutrient resources.
 
 <p align="center">
   <img width="400" height="400" src="https://user-images.githubusercontent.com/1684732/89105594-469d9180-d45d-11ea-944c-367bab8b7c68.png">
